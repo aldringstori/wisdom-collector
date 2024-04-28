@@ -308,21 +308,13 @@ def save_transcript_to_text(transcript, filename, folder):
         create_folder(folder)
     file_path = os.path.join(folder, f"{filename}.txt")
 
-    # Ensure transcript is in the string format
+    # Check if transcript is a list and convert it to string if true
     if isinstance(transcript, list):
-        # If it's a list of segments, concatenate their 'text' elements
-        transcript_str = '\n'.join(segment['text'] for segment in transcript)
-    elif isinstance(transcript, dict):
-        # If it's a dictionary, extract the string content, adapt accordingly
-        transcript_str = transcript['text']  # or however your dictionary is structured
-    else:
-        # If it's already a string, use it as-is
-        transcript_str = transcript
+        transcript = '\n'.join([segment.get('text', '') for segment in transcript])
 
     with open(file_path, "w", encoding='utf-8') as file:
-        file.write(transcript_str)
+        file.write(transcript)
     return file_path
-
 
 
 #On submit functions
