@@ -1,0 +1,6 @@
+tk
+selenium
+requests
+selenium.webdriver
+youtube-transcript-api
+scrapetube
