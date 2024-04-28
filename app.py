@@ -9,6 +9,7 @@ from selenium.webdriver.common.by import By
 import time
 import json
 import subprocess
+import scrapetube
 
 config_file = "settings.json"
 
@@ -89,6 +90,31 @@ def get_video_title(video_url):
     return "unknown_title"
 
 
+def get_playlist_id_from_url(playlist_url):
+    # This regex will match the playlist ID from the standard YouTube playlist URL format
+    match = re.search(r"list=([a-zA-Z0-9_-]+)", playlist_url)
+    if match:
+        return match.group(1)
+    raise ValueError("Invalid YouTube playlist URL")
+
+def get_playlist_videos(playlist_id):
+    try:
+        videos = []
+        for video in scrapetube.get_playlist(playlist_id):
+            video_data = {
+                'id': video['videoId'],
+                'title': video['title']
+            }
+            videos.append(video_data)
+        return videos
+    except AttributeError:
+        # This error handling is for the specific 'utils' attribute error
+        print("The scrapetube module does not have 'utils'. Please check the module's documentation.")
+    except Exception as e:
+        print(f"An error occurred while fetching playlist videos: {e}")
+        return []
+
+
 def fetch_videos_from_channel_selenium(channel_url):
     driver = webdriver.Chrome()
     driver.get(channel_url)
@@ -146,6 +172,47 @@ def fetch_videos_from_shorts_page(shorts_url):
 
     driver.quit()
     return videos_data
+
+
+def fetch_playlist_videos(playlist_id):
+    videos = []
+    try:
+        for video in scrapetube.get_playlist(playlist_id):
+            videos.append(video['videoId'])
+    except Exception as e:
+        print(f"An error occurred while fetching videos from the playlist: {e}")
+    return videos
+
+
+def on_submit_playlist(playlist_url, config):
+    # Extract playlist ID from the URL
+    match = re.search(r"list=([a-zA-Z0-9_-]+)", playlist_url)
+    if not match:
+        messagebox.showerror("Error", "Invalid playlist URL.")
+        return
+
+    playlist_id = match.group(1)
+    videos = fetch_playlist_videos(playlist_id)
+
+    if not videos:
+        messagebox.showerror("Error", "Could not fetch videos from the playlist.")
+        return
+
+    folder_name = f"Playlist_{playlist_id}"
+    full_folder_path = os.path.join(config['download_folder'], folder_name)
+    create_folder(full_folder_path)
+
+    for video_id in videos:
+        video_url = f"https://www.youtube.com/watch?v={video_id}"
+        try:
+            transcript = fetch_transcript(video_url)
+            if not transcript:
+                continue
+            filename = get_video_title(video_url)
+            save_transcript_to_text(transcript, filename, full_folder_path)
+            print(f"Downloaded transcript for {filename}")
+        except Exception as e:
+            print(f"Failed to download transcript for video ID {video_id}: {e}")
 
 
 def download_all_shorts_transcripts(shorts_url, config):
@@ -241,14 +308,24 @@ def save_transcript_to_text(transcript, filename, folder):
         create_folder(folder)
     file_path = os.path.join(folder, f"{filename}.txt")
 
-    # Check if transcript is a list and convert it to string if true
+    # Ensure transcript is in the string format
     if isinstance(transcript, list):
-        transcript = '\n'.join([segment.get('text', '') for segment in transcript])
+        # If it's a list of segments, concatenate their 'text' elements
+        transcript_str = '\n'.join(segment['text'] for segment in transcript)
+    elif isinstance(transcript, dict):
+        # If it's a dictionary, extract the string content, adapt accordingly
+        transcript_str = transcript['text']  # or however your dictionary is structured
+    else:
+        # If it's already a string, use it as-is
+        transcript_str = transcript
 
     with open(file_path, "w", encoding='utf-8') as file:
-        file.write(transcript)
+        file.write(transcript_str)
     return file_path
 
+
+
+#On submit functions
 
 def on_submit_video(video_url, config):
     """Fetch and save the transcript for a given video URL."""
@@ -293,8 +370,10 @@ def on_submit_shorts(shorts_url, config):
         messagebox.showerror("Error", f"An error occurred: {str(e)}")
 
 
-def on_submit_channel():
-    channel_url = channel_url_entry.get()
+def on_submit_channel(channel_url, config):
+    if not channel_url:
+        messagebox.showerror("Error", "Please enter a valid channel URL.")
+        return
     if channel_url:
         channel_name = get_channel_name_from_url(channel_url)
         if channel_name:
@@ -306,7 +385,7 @@ def on_submit_channel():
                     video_id = re.search(r"v=([a-zA-Z0-9_-]+)", video_url).group(1)
                     transcript = fetch_transcript(video_url)
                     safe_title = re.sub(r'[\\/*?:"<>|]', "", video_title) + ".docx"
-                    save_transcript_to_txt(transcript, safe_title, channel_name)
+                    save_transcript_to_text(transcript, safe_title, channel_name)
 
                     progress_var.set((i + 1) / total_videos)
                     status_label.config(text=f"Processed {i + 1} of {total_videos} videos")
@@ -325,6 +404,37 @@ def on_submit_all_shorts(url_entry_widget, config):
         messagebox.showinfo("Success", "All transcripts for shorts have been downloaded.")
     except Exception as e:
         messagebox.showerror("Error", f"An error occurred: {str(e)}")
+
+
+def on_submit_playlist(playlist_url, config):
+    if not playlist_url.strip():
+        messagebox.showwarning("Warning", "Please enter a valid YouTube playlist URL.")
+        return
+
+    try:
+        playlist_id = get_playlist_id_from_url(playlist_url)  # Ensure this function exists and works correctly
+        videos = get_playlist_videos(playlist_id)  # This should be your scrapetube call or equivalent
+        total_videos = len(videos)
+        print(f"Starting download process for playlist. Total videos: {total_videos}")
+
+        for index, video in enumerate(videos, start=1):
+            video_id = video['id']  # Assuming video is a dict and has an 'id' key
+            title = video['title']  # And a 'title' key
+            video_url = f"https://www.youtube.com/watch?v={video_id}"
+            sanitized_title = re.sub(r'[\\/*?:"<>|]', '', title)
+            print(f"Processing {index} of {total_videos}: {sanitized_title}")
+            transcript, error = fetch_transcript(video_url)
+            if error:
+                print(f"Error fetching transcript: {error}")
+                continue
+
+            save_path = save_transcript_to_text(transcript, sanitized_title, config['download_folder'])
+            print(f"Transcript for {sanitized_title} saved to {save_path}. Progress: {index}/{total_videos}")
+
+        messagebox.showinfo("Success", f"All transcripts have been downloaded. Total: {total_videos}")
+    except Exception as e:
+        messagebox.showerror("Error", f"An error occurred: {str(e)}")
+
 
 
 def setup_ui(root, config):
@@ -380,8 +490,9 @@ def setup_ui(root, config):
     tk.Label(channel_frame, text="All transcriptions from all videos of a channel:").pack(side="top", fill='x', padx=5, pady=5)
     channel_url_entry = tk.Entry(channel_frame, width=50)
     channel_url_entry.pack(side="top", fill='x', padx=5, pady=5)
-    channel_submit_btn = tk.Button(channel_frame, text="Download Transcripts for Channel",command=lambda: on_submit_channel(channel_url_entry.get(), config))
+    channel_submit_btn = tk.Button(channel_frame,text="Download Transcripts for Channel",command=lambda: on_submit_channel(channel_url_entry.get(), config))
     channel_submit_btn.pack(side="top", fill='x', padx=5, pady=5)
+
 
     # Shorts LabelFrame for downloading all shorts from a channel
     all_shorts_frame = tk.LabelFrame(massive_frame, text="Channel Shorts", borderwidth=2, relief="groove")
@@ -391,6 +502,15 @@ def setup_ui(root, config):
     all_shorts_url_entry.pack(side="top", fill='x', padx=5, pady=5)
     all_shorts_submit_btn = tk.Button(all_shorts_frame, text="Download All Shorts Transcripts", command=lambda: on_submit_all_shorts(all_shorts_url_entry, config))
     all_shorts_submit_btn.pack(side="top", fill='x', padx=5, pady=5)
+
+    # Add the playlist LabelFrame for downloading all videos from a playlist
+    playlist_frame = tk.LabelFrame(massive_frame, text="Playlist Videos", borderwidth=2, relief="groove")
+    playlist_frame.pack(fill='x', padx=5, pady=5, expand=True)
+    tk.Label(playlist_frame, text="Enter YouTube Playlist URL:").pack(side="top", fill='x', padx=5, pady=5)
+    playlist_url_entry = tk.Entry(playlist_frame, width=50)
+    playlist_url_entry.pack(side="top", fill='x', padx=5, pady=5)
+    playlist_submit_btn = tk.Button(playlist_frame, text="Download Playlist Transcripts", command=lambda: on_submit_playlist(playlist_url_entry.get(), config))
+    playlist_submit_btn.pack(side="top", fill='x', padx=5, pady=5)
 
     # Ensure that the frames in the grid resize properly
     main_frame.grid_columnconfigure(0, weight=1)
@@ -405,7 +525,7 @@ def main():
     # Initialize the main window
     root = tk.Tk()
     root.title("YouTube Transcript Downloader")
-    root.geometry("600x400")
+    root.geometry("600x600")
 
     # ASCII Art
     sherlock_ascii = """
