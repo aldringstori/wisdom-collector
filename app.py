@@ -426,7 +426,7 @@ def main():
         ⠀⠛⠛⠛⠛⠛⠛⠛⠛⠛⠛⠛⠛⠛⠛⠛⠀⠀⠀⠀⠀⠀⠀⠀⠛⠁⠀⠀⠀⠀
     """
     # Display ASCII art
-    ascii_label = tk.Label(root, text=sherlock_ascii, font=('Courier', 12), justify="center")
+    ascii_label = tk.Label(root, text=sherlock_ascii, font=('Hack', 13), justify="center")
     ascii_label.pack()
 
     # Function to clear the ASCII art and load the main UI
