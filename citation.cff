@@ -1,0 +1,30 @@
+cff-version: 1.2.0
+title: Wisdom Collector
+message: >-
+  If you use this software, please cite it using the
+  metadata from this file.
+type: software
+authors:
+  - given-names: Aldrin Gustavo
+    family-names: Stori
+    email: aldrinstori@gmail.com
+repository-code: 'https://github.com/A-GustavoStori/wisdom-collector'
+license: Apache-2.0
+date-released: '2024-04-28'
+
+
+#### BibTeX
+```bibtex
+@software{Aldrin_Stori_wisdom_collector_2024,
+author = {Gustavo Stori, Aldrin},
+license = {Apache-2.0},
+month = april,
+title = {{Wisdom Collector}},
+url = {https://github.com/A-GustavoStori/wisdom-collector},
+year = {2024}
+}
+```
+
+#### APA
+```
+Gustavo Stori, A. (2024). Wisdom Collector [Computer software]. https://github.com/A-GustavoStori/wisdom-collector
