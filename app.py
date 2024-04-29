@@ -42,6 +42,13 @@ def change_downloads_location():
         save_config(config, config_file)  # Corrected function call with parameters
         messagebox.showinfo("Success", f"Download location changed to {config['download_folder']}")
 
+# Define a function to update the global progress bar
+def update_global_progress(progress, total, current):
+    progress_var.set((current / total) * 100)
+    status_label.config(text=f"Processed {current} of {total} items")
+    root.update_idletasks()
+
+
 def open_explorer_at_location(path=None):
     """Open the file explorer at the given path or at the current script's location if no path is provided."""
     if path is None:
@@ -99,21 +106,37 @@ def get_playlist_id_from_url(playlist_url):
 
 def get_playlist_videos(playlist_id):
     try:
+        video_urls = []  # This will store the full video URLs
+        playlist_videos = scrapetube.get_playlist(playlist_id)
+        for video in playlist_videos:
+            video_id = video['videoId']
+            video_url = f"https://www.youtube.com/watch?v={video_id}"  # Construct the full URL
+            video_urls.append(video_url)  # Add it to the list
+        return video_urls
+    except AttributeError as e:
+        print("An issue with the scrapetube module: ", e)
+        return []
+    except Exception as e:
+        print(f"An error occurred while fetching playlist videos: {e}")
+        return []
+
+
+
+def get_all_playlist_videos(playlist_id, sleep=1):
+    try:
         videos = []
-        for video in scrapetube.get_playlist(playlist_id):
+        for video in scrapetube.get_playlist(playlist_id, sleep=sleep):
             video_data = {
                 'id': video['videoId'],
                 'title': video['title']
             }
             videos.append(video_data)
+            if len(videos) % 100 == 0:
+                print(f"Retrieved {len(videos)} videos so far...")
         return videos
-    except AttributeError:
-        # This error handling is for the specific 'utils' attribute error
-        print("The scrapetube module does not have 'utils'. Please check the module's documentation.")
     except Exception as e:
-        print(f"An error occurred while fetching playlist videos: {e}")
+        print(f"An error occurred: {e}")
         return []
-
 
 def fetch_videos_from_channel_selenium(channel_url):
     driver = webdriver.Chrome()
@@ -183,36 +206,8 @@ def fetch_playlist_videos(playlist_id):
         print(f"An error occurred while fetching videos from the playlist: {e}")
     return videos
 
-
-def on_submit_playlist(playlist_url, config):
-    # Extract playlist ID from the URL
-    match = re.search(r"list=([a-zA-Z0-9_-]+)", playlist_url)
-    if not match:
-        messagebox.showerror("Error", "Invalid playlist URL.")
-        return
-
-    playlist_id = match.group(1)
-    videos = fetch_playlist_videos(playlist_id)
-
-    if not videos:
-        messagebox.showerror("Error", "Could not fetch videos from the playlist.")
-        return
-
-    folder_name = f"Playlist_{playlist_id}"
-    full_folder_path = os.path.join(config['download_folder'], folder_name)
-    create_folder(full_folder_path)
-
-    for video_id in videos:
-        video_url = f"https://www.youtube.com/watch?v={video_id}"
-        try:
-            transcript = fetch_transcript(video_url)
-            if not transcript:
-                continue
-            filename = get_video_title(video_url)
-            save_transcript_to_text(transcript, filename, full_folder_path)
-            print(f"Downloaded transcript for {filename}")
-        except Exception as e:
-            print(f"Failed to download transcript for video ID {video_id}: {e}")
+def sanitize_filename(filename):
+    return re.sub(r'[\\/*?:"<>|]', '', filename)
 
 
 def download_all_shorts_transcripts(shorts_url, config):
@@ -362,28 +357,29 @@ def on_submit_shorts(shorts_url, config):
         messagebox.showerror("Error", f"An error occurred: {str(e)}")
 
 
+# On submit functions
+
 def on_submit_channel(channel_url, config):
+    """Fetch and save transcripts for all videos from a given channel URL."""
     if not channel_url:
         messagebox.showerror("Error", "Please enter a valid channel URL.")
         return
-    if channel_url:
-        channel_name = get_channel_name_from_url(channel_url)
-        if channel_name:
-            create_folder(channel_name)
-            videos_data = fetch_videos_from_channel_selenium(channel_url)
-            total_videos = len(videos_data)
-            for i, (video_url, video_title) in enumerate(videos_data):
-                try:
-                    video_id = re.search(r"v=([a-zA-Z0-9_-]+)", video_url).group(1)
-                    transcript = fetch_transcript(video_url)
-                    safe_title = re.sub(r'[\\/*?:"<>|]', "", video_title) + ".docx"
-                    save_transcript_to_text(transcript, safe_title, channel_name)
+    channel_name = get_channel_name_from_url(channel_url)
+    if not channel_name:
+        messagebox.showerror("Error", "Could not determine the channel name from URL.")
+        return
+    create_folder(os.path.join(config['download_folder'], channel_name))
+    videos_data = fetch_videos_from_channel_selenium(channel_url)
+    total_videos = len(videos_data)
+    for i, (video_url, video_title) in enumerate(videos_data):
+        try:
+            video_id = re.search(r"v=([a-zA-Z0-9_-]+)", video_url).group(1)
+            transcript = fetch_transcript(video_url)
+            safe_title = re.sub(r'[\\/*?:"<>|]', "", video_title)
+            save_transcript_to_text(transcript, safe_title, os.path.join(config['download_folder'], channel_name))
+        except Exception as e:
+            messagebox.showerror("Error", f"Error occurred for video {video_title}: {e}")
 
-                    progress_var.set((i + 1) / total_videos)
-                    status_label.config(text=f"Processed {i + 1} of {total_videos} videos")
-                    root.update_idletasks()
-                except Exception as e:
-                    messagebox.showerror("Error", f"Error occurred for video {video_title}: {e}")
 
 def on_submit_all_shorts(url_entry_widget, config):
     shorts_url = url_entry_widget.get()  # Retrieve URL from entry widget
@@ -403,32 +399,43 @@ def on_submit_playlist(playlist_url, config):
         messagebox.showwarning("Warning", "Please enter a valid YouTube playlist URL.")
         return
 
-    try:
-        playlist_id = get_playlist_id_from_url(playlist_url)  # Ensure this function exists and works correctly
-        videos = get_playlist_videos(playlist_id)  # This should be your scrapetube call or equivalent
-        total_videos = len(videos)
-        print(f"Starting download process for playlist. Total videos: {total_videos}")
+    playlist_id = get_playlist_id_from_url(playlist_url)
+    if not playlist_id:
+        messagebox.showerror("Error", "Invalid playlist URL.")
+        return
 
-        for index, video in enumerate(videos, start=1):
-            video_id = video['id']  # Assuming video is a dict and has an 'id' key
-            title = video['title']  # And a 'title' key
-            video_url = f"https://www.youtube.com/watch?v={video_id}"
-            sanitized_title = re.sub(r'[\\/*?:"<>|]', '', title)
-            print(f"Processing {index} of {total_videos}: {sanitized_title}")
-            transcript, error = fetch_transcript(video_url)
-            if error:
-                print(f"Error fetching transcript: {error}")
+    video_urls = get_playlist_videos(playlist_id)
+    if not video_urls:
+        messagebox.showerror("Error", "Could not fetch videos from the playlist.")
+        return
+
+    # Assuming 'video_urls' is the correct variable holding the URLs
+    folder_name = f"Playlist_{playlist_id}"
+    full_folder_path = os.path.join(config['download_folder'], folder_name)
+    create_folder(full_folder_path)
+
+    total_videos = len(video_urls)  # Corrected variable name here
+    for index, video_url in enumerate(video_urls, start=1):  # And here
+        video_title = get_video_title(video_url)  # Fetch the title for each video URL
+
+        # Rest of the code to handle the transcript fetching and saving...
+        try:
+            transcript = fetch_transcript(video_url)
+            if not transcript:
+                print(f"No transcript available for video titled '{video_title}'")
                 continue
 
-            save_path = save_transcript_to_text(transcript, sanitized_title, config['download_folder'])
-            print(f"Transcript for {sanitized_title} saved to {save_path}. Progress: {index}/{total_videos}")
+            filename = sanitize_filename(video_title)
+            save_transcript_to_text(transcript, filename, full_folder_path)
+            update_global_progress(progress_var, total_videos, index)  # Update progress
+            print(f"Transcript for {video_title} saved to {filename}.txt")
+        except Exception as e:
+            messagebox.showerror("Error", f"An error occurred: {e}")
 
-        messagebox.showinfo("Success", f"All transcripts have been downloaded. Total: {total_videos}")
-    except Exception as e:
-        messagebox.showerror("Error", f"An error occurred: {str(e)}")
+    messagebox.showinfo("Success", f"All transcripts have been downloaded. Total: {total_videos}")
 
 
-
+#UI
 def setup_ui(root, config):
     # Main frame for padding
     main_frame = tk.Frame(root, padx=15, pady=15)
@@ -448,6 +455,21 @@ def setup_ui(root, config):
     menu_bar.add_cascade(label="Settings", menu=settings_menu)
     settings_menu.add_command(label="Change Downloads Location", command=change_downloads_location)
     settings_menu.add_command(label="Option 2", command=lambda: messagebox.showinfo("Settings", "Option 2 selected"))
+
+    # Initialize the progress_var variable
+    global progress_var  # Make progress_var global
+    progress_var = tk.DoubleVar()
+
+    # Create a global progress bar and associate it with progress_var
+    global progress_bar
+    progress_bar = ttk.Progressbar(root, variable=progress_var, maximum=100)
+    progress_bar.pack(fill='x', padx=5, pady=5)
+
+    # Create a status label to display text status under the progress bar
+    global status_label
+    status_label = tk.Label(root, text="")
+    status_label.pack(fill='x', padx=5, pady=5)
+
 
     # Left side for Single Downloads
     single_frame = tk.LabelFrame(main_frame, text="Single", borderwidth=2, relief="groove")
@@ -482,7 +504,7 @@ def setup_ui(root, config):
     tk.Label(channel_frame, text="All transcriptions from all videos of a channel:").pack(side="top", fill='x', padx=5, pady=5)
     channel_url_entry = tk.Entry(channel_frame, width=50)
     channel_url_entry.pack(side="top", fill='x', padx=5, pady=5)
-    channel_submit_btn = tk.Button(channel_frame,text="Download Transcripts for Channel",command=lambda: on_submit_channel(channel_url_entry.get(), config))
+    channel_submit_btn = tk.Button(channel_frame, text="Download Transcripts for Channel", command=lambda: on_submit_channel(channel_url_entry.get(), config))
     channel_submit_btn.pack(side="top", fill='x', padx=5, pady=5)
 
 
@@ -492,7 +514,7 @@ def setup_ui(root, config):
     tk.Label(all_shorts_frame, text="All transcriptions from all shorts of a channel:").pack(side="top", fill='x', padx=5, pady=5)
     all_shorts_url_entry = tk.Entry(all_shorts_frame, width=50)
     all_shorts_url_entry.pack(side="top", fill='x', padx=5, pady=5)
-    all_shorts_submit_btn = tk.Button(all_shorts_frame, text="Download All Shorts Transcripts", command=lambda: on_submit_all_shorts(all_shorts_url_entry, config))
+    all_shorts_submit_btn = tk.Button(all_shorts_frame, text="Download All Shorts Transcripts",command=lambda: on_submit_all_shorts(all_shorts_url_entry, config))
     all_shorts_submit_btn.pack(side="top", fill='x', padx=5, pady=5)
 
     # Add the playlist LabelFrame for downloading all videos from a playlist
@@ -515,6 +537,7 @@ def main():
     config = load_config(config_file)  # Correctly call load_config without the ui prefix
 
     # Initialize the main window
+    global root
     root = tk.Tk()
     root.title("YouTube Transcript Downloader")
     root.geometry("600x600")
