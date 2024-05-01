@@ -3,4 +3,4 @@ selenium
 requests
 selenium.webdriver
 youtube-transcript-api
-scrapetube
+pytube

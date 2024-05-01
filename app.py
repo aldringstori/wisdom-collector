@@ -9,7 +9,7 @@ from selenium.webdriver.common.by import By
 import time
 import json
 import subprocess
-import scrapetube
+from pytube import Playlist
 
 config_file = "settings.json"
 
@@ -43,10 +43,12 @@ def change_downloads_location():
         messagebox.showinfo("Success", f"Download location changed to {config['download_folder']}")
 
 # Define a function to update the global progress bar
-def update_global_progress(progress, total, current):
-    progress_var.set((current / total) * 100)
-    status_label.config(text=f"Processed {current} of {total} items")
-    root.update_idletasks()
+
+def process_video_urls(video_urls):
+    total = len(video_urls)
+    for index, url in enumerate(video_urls):
+        # Assume some processing happens here.
+        update_global_progress(index + 1, total)  # Correctly passing two arguments
 
 
 def open_explorer_at_location(path=None):
@@ -104,21 +106,38 @@ def get_playlist_id_from_url(playlist_url):
         return match.group(1)
     raise ValueError("Invalid YouTube playlist URL")
 
-def get_playlist_videos(playlist_id):
-    try:
-        video_urls = []  # This will store the full video URLs
-        playlist_videos = scrapetube.get_playlist(playlist_id)
-        for video in playlist_videos:
-            video_id = video['videoId']
-            video_url = f"https://www.youtube.com/watch?v={video_id}"  # Construct the full URL
-            video_urls.append(video_url)  # Add it to the list
-        return video_urls
-    except AttributeError as e:
-        print("An issue with the scrapetube module: ", e)
-        return []
-    except Exception as e:
-        print(f"An error occurred while fetching playlist videos: {e}")
-        return []
+def get_playlist_videos_py(p_url):
+    playlist = Playlist(p_url)
+    video_urls = playlist.video_urls  # Get all video URLs from the playlist
+    return video_urls
+
+def update_global_progress(progress_var, current, total):
+    percentage = (current / total) * 100
+    progress_var.set(percentage)
+    status_label.config(text=f"Processed {current} of {total} videos")
+    root.update_idletasks()
+
+def scrape_youtube(video_urls):
+    videos_info = []
+    for index, video_url in enumerate(video_urls):
+        update_global_progress(index + 1, len(video_urls))
+        video_data = fetch_video_data(video_url)
+        videos_info.append(video_data)
+    return videos_info
+
+
+def fetch_video_data(video_url):
+    video_id = get_video_id_from_url(video_url)
+    response = requests.get(video_url)
+    soup = bs(response.text, 'html.parser')
+    video_details = utube_service.get_video_details(soup)
+    return {
+        "title": video_details.get("title", ""),
+        "channel": video_details.get("channel", ""),
+        "description": video_details.get("description", ""),
+        "video_id": video_id,
+        "external_link": f"https://www.youtube.com/watch?v={video_id}"
+    }
 
 
 
@@ -273,25 +292,28 @@ def fetch_shorts_transcript(shorts_url):
 
 def fetch_transcript(video_url):
     video_id = re.search(r"v=([a-zA-Z0-9_-]+)", video_url).group(1)
-    transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
-
     try:
-        # Try to get an English transcript
-        transcript = transcript_list.find_transcript(['en']).fetch()
-    except Exception as e:
-        print(f"No English transcript found. Attempting to fetch English (UK) version: {e}")
+        transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
         try:
-            # If not found, try to get an English (UK) transcript
-            transcript = transcript_list.find_transcript(['en-GB']).fetch()
+            # Try to get an English transcript
+            transcript = transcript_list.find_transcript(['en']).fetch()
         except Exception as e:
-            print(f"No English (UK) transcript found. Attempting to fetch Portuguese version and translate it: {e}")
+            print(f"No English transcript found. Attempting to fetch English (UK) version: {e}")
             try:
-                # If not found, try to get a Portuguese transcript and translate it to English
-                pt_transcript = transcript_list.find_transcript(['pt']).fetch()
-                transcript = pt_transcript.translate('en').fetch()
+                # If not found, try to get an English (UK) transcript
+                transcript = transcript_list.find_transcript(['en-GB']).fetch()
             except Exception as e:
-                print(f"Failed to fetch or translate Portuguese transcript: {e}")
-                raise ValueError("No suitable transcript available")
+                print(f"No English (UK) transcript found. Attempting to fetch Portuguese version and translate it: {e}")
+                try:
+                    # If not found, try to get a Portuguese transcript and translate it to English
+                    pt_transcript = transcript_list.find_transcript(['pt']).fetch()
+                    transcript = pt_transcript.translate('en').fetch()
+                except Exception as e:
+                    print(f"Failed to fetch or translate Portuguese transcript: {e}")
+                    transcript = None  # Ensure transcript is None if all attempts fail
+    except Exception as e:
+        print(f"Unable to fetch any transcripts: {e}")
+        transcript = None  # Ensure transcript is None if the initial API call fails
 
     return transcript
 
@@ -357,8 +379,6 @@ def on_submit_shorts(shorts_url, config):
         messagebox.showerror("Error", f"An error occurred: {str(e)}")
 
 
-# On submit functions
-
 def on_submit_channel(channel_url, config):
     """Fetch and save transcripts for all videos from a given channel URL."""
     if not channel_url:
@@ -399,40 +419,40 @@ def on_submit_playlist(playlist_url, config):
         messagebox.showwarning("Warning", "Please enter a valid YouTube playlist URL.")
         return
 
-    playlist_id = get_playlist_id_from_url(playlist_url)
-    if not playlist_id:
-        messagebox.showerror("Error", "Invalid playlist URL.")
-        return
+    try:
+        video_urls = get_playlist_videos_py(playlist_url)
+        if not video_urls:
+            messagebox.showerror("Error", "Could not fetch videos from the playlist.")
+            return
 
-    video_urls = get_playlist_videos(playlist_id)
-    if not video_urls:
-        messagebox.showerror("Error", "Could not fetch videos from the playlist.")
-        return
+        # Assuming 'video_urls' is the correct variable holding the URLs
+        folder_name = f"Playlist_{get_playlist_id_from_url(playlist_url)}"
+        full_folder_path = os.path.join(config['download_folder'], folder_name)
+        create_folder(full_folder_path)
 
-    # Assuming 'video_urls' is the correct variable holding the URLs
-    folder_name = f"Playlist_{playlist_id}"
-    full_folder_path = os.path.join(config['download_folder'], folder_name)
-    create_folder(full_folder_path)
+        total_videos = len(video_urls)  # Corrected variable name here
+        for index, video_url in enumerate(video_urls, start=1):  # And here
+            video_title = get_video_title(video_url)  # Fetch the title for each video URL
 
-    total_videos = len(video_urls)  # Corrected variable name here
-    for index, video_url in enumerate(video_urls, start=1):  # And here
-        video_title = get_video_title(video_url)  # Fetch the title for each video URL
+            # Rest of the code to handle the transcript fetching and saving...
+            try:
+                transcript = fetch_transcript(video_url)
+                if not transcript:
+                    print(f"No transcript available for video titled '{video_title}'")
+                    continue
 
-        # Rest of the code to handle the transcript fetching and saving...
-        try:
-            transcript = fetch_transcript(video_url)
-            if not transcript:
-                print(f"No transcript available for video titled '{video_title}'")
-                continue
+                filename = sanitize_filename(video_title)
+                save_transcript_to_text(transcript, filename, full_folder_path)
+                update_global_progress(progress_var, total_videos, index)  # Update progress
+                print(f"Transcript for {video_title} saved to {filename}.txt")
+            except Exception as e:
+                messagebox.showerror("Error", f"An error occurred: {e}")
 
-            filename = sanitize_filename(video_title)
-            save_transcript_to_text(transcript, filename, full_folder_path)
-            update_global_progress(progress_var, total_videos, index)  # Update progress
-            print(f"Transcript for {video_title} saved to {filename}.txt")
-        except Exception as e:
-            messagebox.showerror("Error", f"An error occurred: {e}")
+        messagebox.showinfo("Success", f"All transcripts have been downloaded. Total: {total_videos}")
+    except Exception as e:
+        messagebox.showerror("Error", f"An error occurred: {str(e)}")
 
-    messagebox.showinfo("Success", f"All transcripts have been downloaded. Total: {total_videos}")
+
 
 
 #UI
