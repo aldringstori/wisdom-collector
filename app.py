@@ -9,21 +9,29 @@ from selenium.webdriver.common.by import By
 import time
 import json
 import subprocess
+import threading
 from pytube import Playlist
 
 config_file = "settings.json"
+config = {}
 
 #Configs and Settings
 def load_config(config_filename):
     """Load the configuration file or create a default configuration if it doesn't exist."""
-    default_config = {
-        "download_folder": os.path.join(os.getcwd(), "Transcriptions")
-    }
-    if not os.path.exists(config_filename):
+    try:
+        with open(config_filename, 'r') as f:
+            config = json.load(f)
+    except FileNotFoundError:
+        config = {
+            "download_folder": os.path.join(os.getcwd(), "Transcriptions")
+        }
         with open(config_filename, 'w') as f:
-            json.dump(default_config, f)
-    with open(config_filename, 'r') as f:
-        return json.load(f)
+            json.dump(config, f)
+    # Ensure 'download_folder' key exists
+    if 'download_folder' not in config:
+        config['download_folder'] = os.path.join(os.getcwd(), "Transcriptions")
+        save_config(config, config_filename)
+    return config
 
 
 def save_config(config, config_filename):
@@ -36,19 +44,14 @@ def create_folder(folder_name):
         os.makedirs(folder_name)
 
 def change_downloads_location():
-    folder_selected = filedialog.askdirectory(initialdir=config['download_folder'])
+    global config
+    folder_selected = filedialog.askdirectory(initialdir=config.get('download_folder', os.getcwd()))
     if folder_selected:
         config['download_folder'] = folder_selected
-        save_config(config, config_file)  # Corrected function call with parameters
+        save_config(config, config_file)
         messagebox.showinfo("Success", f"Download location changed to {config['download_folder']}")
 
-# Define a function to update the global progress bar
 
-def process_video_urls(video_urls):
-    total = len(video_urls)
-    for index, url in enumerate(video_urls):
-        # Assume some processing happens here.
-        update_global_progress(index + 1, total)  # Correctly passing two arguments
 
 
 def open_explorer_at_location(path=None):
@@ -63,6 +66,15 @@ def open_explorer_at_location(path=None):
         subprocess.run(['open', path] if os.uname().sysname == 'Darwin' else ['xdg-open', path], check=True)
     else:
         raise OSError("Unsupported operating system")
+
+def process_video_urls(video_urls):
+    total = len(video_urls)
+    for index, url in enumerate(video_urls):
+        # Assume some processing happens here.
+        update_global_progress(index + 1, total)  # Correctly passing two arguments
+
+
+
 def get_channel_name_from_url(channel_url):
     # Split the URL at '@' and take the latter part
     parts = channel_url.split('@')
@@ -298,44 +310,50 @@ def fetch_transcript(video_url):
             # Try to get an English transcript
             transcript = transcript_list.find_transcript(['en']).fetch()
         except Exception as e:
-            print(f"No English transcript found. Attempting to fetch English (UK) version: {e}")
+            print(f"No English transcript found for video {video_id}. Attempting to fetch English (UK) version: {str(e)}")
             try:
                 # If not found, try to get an English (UK) transcript
                 transcript = transcript_list.find_transcript(['en-GB']).fetch()
             except Exception as e:
-                print(f"No English (UK) transcript found. Attempting to fetch Portuguese version and translate it: {e}")
+                print(f"No English (UK) transcript found for video {video_id}. Attempting to fetch Portuguese version and translate it: {str(e)}")
                 try:
                     # If not found, try to get a Portuguese transcript and translate it to English
                     pt_transcript = transcript_list.find_transcript(['pt']).fetch()
                     transcript = pt_transcript.translate('en').fetch()
                 except Exception as e:
-                    print(f"Failed to fetch or translate Portuguese transcript: {e}")
+                    print(f"Failed to fetch or translate Portuguese transcript for video {video_id}: {str(e)}")
                     transcript = None  # Ensure transcript is None if all attempts fail
     except Exception as e:
-        print(f"Unable to fetch any transcripts: {e}")
-        transcript = None  # Ensure transcript is None if the initial API call fails
+        print(f"Unable to fetch any transcripts for video {video_id}: {str(e)}")
+        transcript = None
 
     return transcript
 
 
 
+
 def save_transcript_to_text(transcript, filename, folder):
     """Save the fetched transcript to a text file."""
+    if transcript is None:
+        print(f"No transcript available to save for {filename}.")
+        return None  # Return early if there's nothing to write
+
     if not os.path.exists(folder):
         create_folder(folder)
     file_path = os.path.join(folder, f"{filename}.txt")
 
-    # Check if transcript is a list and convert it to string if true
+    # If transcript is a list of segments, join them into a single string
     if isinstance(transcript, list):
         transcript = '\n'.join([segment.get('text', '') for segment in transcript])
 
     with open(file_path, "w", encoding='utf-8') as file:
         file.write(transcript)
+
     return file_path
 
 
-#On submit functions
 
+#On submit functions
 def on_submit_video(video_url, config):
     """Fetch and save the transcript for a given video URL."""
     if not video_url.strip():  # Check if the URL is not just whitespace
@@ -474,7 +492,6 @@ def setup_ui(root, config):
     settings_menu = Menu(menu_bar, tearoff=0)
     menu_bar.add_cascade(label="Settings", menu=settings_menu)
     settings_menu.add_command(label="Change Downloads Location", command=change_downloads_location)
-    settings_menu.add_command(label="Option 2", command=lambda: messagebox.showinfo("Settings", "Option 2 selected"))
 
     # Initialize the progress_var variable
     global progress_var  # Make progress_var global
