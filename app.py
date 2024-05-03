@@ -11,13 +11,15 @@ import json
 import subprocess
 import threading
 from pytube import Playlist
+import PyPDF2
+
 
 config_file = "settings.json"
 config = {}
 
 #Configs and Settings
 def load_config(config_filename):
-    """Load the configuration file or create a default configuration if it doesn't exist."""
+    global config
     try:
         with open(config_filename, 'r') as f:
             config = json.load(f)
@@ -27,7 +29,6 @@ def load_config(config_filename):
         }
         with open(config_filename, 'w') as f:
             json.dump(config, f)
-    # Ensure 'download_folder' key exists
     if 'download_folder' not in config:
         config['download_folder'] = os.path.join(os.getcwd(), "Transcriptions")
         save_config(config, config_filename)
@@ -151,6 +152,24 @@ def fetch_video_data(video_url):
         "external_link": f"https://www.youtube.com/watch?v={video_id}"
     }
 
+
+def pdf_to_text():
+    global config
+    folder = config.get('download_folder', os.path.join(os.getcwd(), "Transcriptions"))
+    pdf_path = filedialog.askopenfilename(filetypes=[("PDF Files", "*.pdf")])
+    if pdf_path:
+        with open(pdf_path, "rb") as file:
+            pdf_reader = PyPDF2.PdfReader(file)
+            text = [page.extract_text() for page in pdf_reader.pages if page.extract_text()]
+            text_content = "\n".join(text)
+
+        text_filename = os.path.splitext(os.path.basename(pdf_path))[0] + ".txt"
+        text_file_path = os.path.join(folder, text_filename)
+        with open(text_file_path, "w", encoding='utf-8') as text_file:
+            text_file.write(text_content)
+        messagebox.showinfo("Success", f"PDF converted to text and saved as {text_file_path}")
+    else:
+        messagebox.showwarning("No File Selected", "Please select a PDF file to convert.")
 
 
 def get_all_playlist_videos(playlist_id, sleep=1):
@@ -531,6 +550,12 @@ def setup_ui(root, config):
     shorts_submit_btn = tk.Button(shorts_frame, text="Download Transcript for Shorts",command=lambda: on_submit_shorts(shorts_url_entry.get(), config))
     shorts_submit_btn.pack(side="top", fill='x', padx=5, pady=5)
 
+    # Inside setup_ui function, within the single_frame section
+    pdf_frame = tk.LabelFrame(single_frame, text="PDF to Text", borderwidth=2, relief="groove")
+    pdf_frame.pack(fill='x', padx=5, pady=5, expand=True)
+    pdf_convert_btn = tk.Button(pdf_frame, text="Convert PDF to Text", command=pdf_to_text)
+    pdf_convert_btn.pack(side="top", fill='x', padx=5, pady=5)
+
     # Right side for Massive Downloads
     massive_frame = tk.LabelFrame(main_frame, text="Massive", borderwidth=2, relief="groove")
     massive_frame.grid(row=0, column=1, padx=5, pady=5, sticky="nsew")
@@ -571,6 +596,7 @@ def setup_ui(root, config):
     return main_frame
 
 def main():
+    global config
     config = load_config(config_file)  # Correctly call load_config without the ui prefix
 
     # Initialize the main window

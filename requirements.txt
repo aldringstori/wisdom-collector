@@ -4,3 +4,4 @@ requests
 selenium.webdriver
 youtube-transcript-api
 pytube
+PyPDF2
