@@ -4,11 +4,9 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="52431d44-b157-4d80-8893-75c8ad399e69" name="Changes" comment="*Switch from scrapetube to pytube">
+    <list default="true" id="52431d44-b157-4d80-8893-75c8ad399e69" name="Changes" comment="* Convert pdf to plain text">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/app.py" beforeDir="false" afterPath="$PROJECT_DIR$/app.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/requirements.txt" beforeDir="false" afterPath="$PROJECT_DIR$/requirements.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/settings.json" beforeDir="false" afterPath="$PROJECT_DIR$/settings.json" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -159,7 +157,15 @@
       <option name="project" value="LOCAL" />
       <updated>1714596880290</updated>
     </task>
-    <option name="localTasksCounter" value="6" />
+    <task id="LOCAL-00006" summary="* Convert pdf to plain text">
+      <option name="closed" value="true" />
+      <created>1714751630966</created>
+      <option name="number" value="00006" />
+      <option name="presentableId" value="LOCAL-00006" />
+      <option name="project" value="LOCAL" />
+      <updated>1714751630966</updated>
+    </task>
+    <option name="localTasksCounter" value="7" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
@@ -178,7 +184,8 @@
     <MESSAGE value="Everything working but playlists" />
     <MESSAGE value="Open source release" />
     <MESSAGE value="*Switch from scrapetube to pytube" />
-    <option name="LAST_COMMIT_MESSAGE" value="*Switch from scrapetube to pytube" />
+    <MESSAGE value="* Convert pdf to plain text" />
+    <option name="LAST_COMMIT_MESSAGE" value="* Convert pdf to plain text" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>

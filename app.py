@@ -154,23 +154,40 @@ def fetch_video_data(video_url):
 
 
 def pdf_to_text():
-    global config
-    folder = config.get('download_folder', os.path.join(os.getcwd(), "Transcriptions"))
     pdf_path = filedialog.askopenfilename(filetypes=[("PDF Files", "*.pdf")])
     if pdf_path:
-        with open(pdf_path, "rb") as file:
-            pdf_reader = PyPDF2.PdfReader(file)
-            text = [page.extract_text() for page in pdf_reader.pages if page.extract_text()]
-            text_content = "\n".join(text)
-
-        text_filename = os.path.splitext(os.path.basename(pdf_path))[0] + ".txt"
-        text_file_path = os.path.join(folder, text_filename)
-        with open(text_file_path, "w", encoding='utf-8') as text_file:
-            text_file.write(text_content)
-        messagebox.showinfo("Success", f"PDF converted to text and saved as {text_file_path}")
+        threading.Thread(target=process_pdf, args=(pdf_path,)).start()
     else:
         messagebox.showwarning("No File Selected", "Please select a PDF file to convert.")
 
+
+def process_pdf(pdf_path):
+    global progress_var
+    folder = config.get('download_folder', os.path.join(os.getcwd(), "Transcriptions"))
+    with open(pdf_path, "rb") as file:
+        pdf_reader = PyPDF2.PdfReader(file)
+        num_pages = len(pdf_reader.pages)
+        text_content = []
+
+        for i, page in enumerate(pdf_reader.pages):
+            text = page.extract_text()
+            if text:
+                text_content.append(text)
+            # Update progress bar after processing each page
+            update_progress(i + 1, num_pages)
+
+    text_filename = os.path.splitext(os.path.basename(pdf_path))[0] + ".txt"
+    text_file_path = os.path.join(folder, text_filename)
+    with open(text_file_path, "w", encoding='utf-8') as text_file:
+        text_file.write("\n".join(text_content))
+
+    messagebox.showinfo("Success", f"PDF converted to text and saved as {text_file_path}")
+
+
+def update_progress(current, total):
+    progress = (current / total) * 100
+    root.after(50, lambda: progress_var.set(progress))
+    root.after(50, lambda: status_label.config(text=f"Processed {current} of {total} pages"))
 
 def get_all_playlist_videos(playlist_id, sleep=1):
     try:
