@@ -9,13 +9,17 @@ from selenium.webdriver.common.by import By
 import time
 import json
 import subprocess
+import queue
 import threading
 from pytube import Playlist
 import PyPDF2
+from googletrans import Translator
 
 
 config_file = "settings.json"
 config = {}
+download_queue = queue.Queue()
+
 
 #Configs and Settings
 def load_config(config_filename):
@@ -340,30 +344,28 @@ def fetch_shorts_transcript(shorts_url):
 
 def fetch_transcript(video_url):
     video_id = re.search(r"v=([a-zA-Z0-9_-]+)", video_url).group(1)
+    translator = Translator()  # Prepare the translator for use if needed
+
     try:
+        # Try to fetch the transcript using the YouTube Transcript API
         transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
         try:
-            # Try to get an English transcript
+            # First preference: English transcript
             transcript = transcript_list.find_transcript(['en']).fetch()
-        except Exception as e:
-            print(f"No English transcript found for video {video_id}. Attempting to fetch English (UK) version: {str(e)}")
+            return ' '.join([entry['text'] for entry in transcript])  # Formatting the transcript into plain text
+        except NoTranscriptFound:
+            # Second preference: Portuguese transcript, to translate into English
+            print(f"No English transcript available for video {video_id}, attempting to fetch Portuguese version.")
             try:
-                # If not found, try to get an English (UK) transcript
-                transcript = transcript_list.find_transcript(['en-GB']).fetch()
+                pt_transcript = transcript_list.find_transcript(['pt']).fetch()
+                # Translate Portuguese transcript to English
+                translated_text = ' '.join([translator.translate(entry['text'], src='pt', dest='en').text for entry in pt_transcript])
+                return translated_text
             except Exception as e:
-                print(f"No English (UK) transcript found for video {video_id}. Attempting to fetch Portuguese version and translate it: {str(e)}")
-                try:
-                    # If not found, try to get a Portuguese transcript and translate it to English
-                    pt_transcript = transcript_list.find_transcript(['pt']).fetch()
-                    transcript = pt_transcript.translate('en').fetch()
-                except Exception as e:
-                    print(f"Failed to fetch or translate Portuguese transcript for video {video_id}: {str(e)}")
-                    transcript = None  # Ensure transcript is None if all attempts fail
+                print(f"Failed to fetch or translate Portuguese transcript for video {video_id}: {str(e)}")
     except Exception as e:
         print(f"Unable to fetch any transcripts for video {video_id}: {str(e)}")
-        transcript = None
-
-    return transcript
+        return None
 
 
 
@@ -387,7 +389,42 @@ def save_transcript_to_text(transcript, filename, folder):
 
     return file_path
 
+def process_video_downloads():
+    while not download_queue.empty():
+        channel_url = download_queue.get()
+        videos = fetch_videos_from_channel_selenium(channel_url)
+        for video_url, title in videos:
+            print(f"Downloading {title} from {video_url}")  # Placeholder for actual download code
+        download_queue.task_done()
+    messagebox.showinfo("Download Complete", "All queued videos have been downloaded.")
 
+def add_to_queue(url, listbox):
+    if url:
+        download_queue.put(url)
+        listbox.insert(tk.END, url)  # Add URL to the Listbox for visual tracking
+        messagebox.showinfo("Queue Update", "URL added to queue.")
+    else:
+        messagebox.showwarning("Input Error", "Please enter a valid URL.")
+
+def start_queue_download(listbox):
+    def process_next_channel():
+        while not download_queue.empty():
+            url = download_queue.get()
+            try:
+                # Simulate processing by calling your function for channel downloads
+                on_submit_channel(url, config)
+                listbox.delete(0)  # Remove the item from the listbox once processed
+            except Exception as e:
+                messagebox.showerror("Download Error", f"Failed to download from {url}: {str(e)}")
+            download_queue.task_done()
+            # This checks if there are more items in the queue and calls the next one
+            if not download_queue.empty():
+                root.after(100, process_next_channel)  # Adds a slight delay before processing the next item
+            else:
+                messagebox.showinfo("Download Complete", "All items in the queue have been processed.")
+
+    # Start the first process
+    root.after(100, process_next_channel)
 
 #On submit functions
 def on_submit_video(video_url, config):
@@ -605,9 +642,28 @@ def setup_ui(root, config):
     playlist_submit_btn = tk.Button(playlist_frame, text="Download Playlist Transcripts", command=lambda: on_submit_playlist(playlist_url_entry.get(), config))
     playlist_submit_btn.pack(side="top", fill='x', padx=5, pady=5)
 
-    # Ensure that the frames in the grid resize properly
+    # Queue Management Setup
+    queue_frame = tk.LabelFrame(main_frame, text="Queue Management", borderwidth=2, relief="groove")
+    queue_frame.grid(row=0, column=2, padx=5, pady=5, sticky="nsew")
+
+    # Increase the height of the list box and set a new width
+    queue_display = tk.Listbox(queue_frame, height=20, width=50)  # Adjusted width to 50
+    queue_display.pack(padx=10, pady=10, expand=True,
+                       fill='both')  # Use 'expand' and 'fill' to make it use available space
+
+    # Button to add URLs to the queue
+    add_to_queue_btn = tk.Button(queue_frame, text="Add to Queue",
+                                 command=lambda: add_to_queue(channel_url_entry.get(), queue_display))
+    add_to_queue_btn.pack(pady=10)
+
+    # Button to start downloading from the queue
+    start_queue_btn = tk.Button(queue_frame, text="Start Download from Queue",
+                                command=lambda: start_queue_download(queue_display))
+    start_queue_btn.pack(pady=10)
+
     main_frame.grid_columnconfigure(0, weight=1)
     main_frame.grid_columnconfigure(1, weight=1)
+    main_frame.grid_columnconfigure(2, weight=1)
     main_frame.grid_rowconfigure(0, weight=1)
 
     return main_frame
@@ -620,7 +676,7 @@ def main():
     global root
     root = tk.Tk()
     root.title("YouTube Transcript Downloader")
-    root.geometry("600x600")
+    root.geometry("1280x720")
 
     # ASCII Art
     sherlock_ascii = """
