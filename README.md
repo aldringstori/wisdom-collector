@@ -1,4 +1,4 @@
-A software with GUI to download youtube transcripts to text files to use mainly for AI database, using 
+A software with GUI to download youtube transcripts to text files to use mainly for collecting data for AI database, using 
 youtube-transcript-api (https://github.com/jdepoix/youtube-transcript-api)
 Scraptube (https://github.com/dermasmid/scrapetube).
 
@@ -10,6 +10,8 @@ Single youtube shorts transcription download
 All videos from a channel transcriptions download
 All shorts from a channel transcriptions download
 Playlist transcriptions download
+Queue multiple channels
+Convert pdf to txt
 
 Motivation
 To feed AI with your preferred channel data or anything else you want to use.
