@@ -4,7 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="52431d44-b157-4d80-8893-75c8ad399e69" name="Changes" comment="* Added pdf to text functionallity &#10;* Progress bar for converting pdf to plain text">
+    <list default="true" id="52431d44-b157-4d80-8893-75c8ad399e69" name="Changes" comment="* Added download queue multiple channels functionallity">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/app.py" beforeDir="false" afterPath="$PROJECT_DIR$/app.py" afterDir="false" />
     </list>
@@ -47,7 +47,7 @@
     "RunOnceActivity.ShowReadmeOnStart": "true",
     "git-widget-placeholder": "master",
     "ignore.virus.scanning.warn.message": "true",
-    "settings.editor.selected.configurable": "configurable.group.appearance"
+    "settings.editor.selected.configurable": "MTTabsSettingsConfigurable"
   }
 }]]></component>
   <component name="RunManager" selected="Python.app (1)">
@@ -173,7 +173,15 @@
       <option name="project" value="LOCAL" />
       <updated>1714828291390</updated>
     </task>
-    <option name="localTasksCounter" value="8" />
+    <task id="LOCAL-00008" summary="* Added download queue multiple channels functionallity">
+      <option name="closed" value="true" />
+      <created>1714959263234</created>
+      <option name="number" value="00008" />
+      <option name="presentableId" value="LOCAL-00008" />
+      <option name="project" value="LOCAL" />
+      <updated>1714959263234</updated>
+    </task>
+    <option name="localTasksCounter" value="9" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
@@ -194,7 +202,8 @@
     <MESSAGE value="*Switch from scrapetube to pytube" />
     <MESSAGE value="* Convert pdf to plain text" />
     <MESSAGE value="* Added pdf to text functionallity &#10;* Progress bar for converting pdf to plain text" />
-    <option name="LAST_COMMIT_MESSAGE" value="* Added pdf to text functionallity &#10;* Progress bar for converting pdf to plain text" />
+    <MESSAGE value="* Added download queue multiple channels functionallity" />
+    <option name="LAST_COMMIT_MESSAGE" value="* Added download queue multiple channels functionallity" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>

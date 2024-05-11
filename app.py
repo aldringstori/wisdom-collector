@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import ttk, messagebox, filedialog, Menu
+from tkinter import ttk, messagebox, filedialog, Menu, Listbox, END
 from youtube_transcript_api import YouTubeTranscriptApi, TranscriptsDisabled, NoTranscriptFound
 import requests
 import os
@@ -11,6 +11,7 @@ import json
 import subprocess
 import queue
 import threading
+import logging
 from pytube import Playlist
 import PyPDF2
 from googletrans import Translator
@@ -19,6 +20,7 @@ from googletrans import Translator
 config_file = "settings.json"
 config = {}
 download_queue = queue.Queue()
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 
 #Configs and Settings
@@ -187,11 +189,38 @@ def process_pdf(pdf_path):
 
     messagebox.showinfo("Success", f"PDF converted to text and saved as {text_file_path}")
 
+def fetch_and_save_transcript(video_url, listbox, config):
+    try:
+        title = get_video_title(video_url)
+        transcript = fetch_transcript(video_url)
+        if transcript:
+            save_transcript_to_text(transcript, sanitize_filename(title), config['download_folder'])
+            return True
+        else:
+            return False
+    except Exception as e:
+        logging.error(f"Error fetching/saving transcript for {video_url}: {str(e)}")
+        return False
+def process_videos(video_urls, listbox, config):
+    for video_url in video_urls:
+        try:
+            success = fetch_and_save_transcript(video_url, listbox, config)
+            listbox.insert(END, f"Processed: {get_video_title(video_url)} - {'Success' if success else 'Failed'}")
+            listbox.update_idletasks()
+            logging.info(f"Processed {get_video_title(video_url)}: {'Success' if success else 'Failed'}")
+        except Exception as e:
+            logging.error(f"Failed to process video {video_url}: {str(e)}")
+        time.sleep(5)  # Delay to mimic API call spacing
 
+def threaded_process_videos(video_urls, listbox, config):
+    thread = threading.Thread(target=process_videos, args=(video_urls, listbox, config))
+    thread.start()
 def update_progress(current, total):
     progress = (current / total) * 100
     root.after(50, lambda: progress_var.set(progress))
     root.after(50, lambda: status_label.config(text=f"Processed {current} of {total} pages"))
+
+
 
 def get_all_playlist_videos(playlist_id, sleep=1):
     try:
@@ -369,6 +398,17 @@ def fetch_transcript(video_url):
 
 
 
+def fetch_videos_with_transcripts(channel_url):
+    videos_data = fetch_videos_from_channel_selenium(channel_url)
+    results = []
+
+    for video_url, video_title in videos_data:
+        transcript = fetch_transcript(video_url)
+        if transcript is not None:
+            results.append({'url': video_url, 'title': video_title, 'transcript': transcript})
+
+    return results
+
 
 def save_transcript_to_text(transcript, filename, folder):
     """Save the fetched transcript to a text file."""
@@ -543,6 +583,10 @@ def on_submit_playlist(playlist_url, config):
     except Exception as e:
         messagebox.showerror("Error", f"An error occurred: {str(e)}")
 
+def start_threaded_process(video_urls, listbox):
+    # Start the processing in a new thread to prevent UI freezing
+    thread = threading.Thread(target=process_videos, args=(video_urls, listbox))
+    thread.start()
 
 
 
@@ -648,25 +692,41 @@ def setup_ui(root, config):
 
     # Increase the height of the list box and set a new width
     queue_display = tk.Listbox(queue_frame, height=20, width=50)  # Adjusted width to 50
-    queue_display.pack(padx=10, pady=10, expand=True,
-                       fill='both')  # Use 'expand' and 'fill' to make it use available space
+    queue_display.pack(padx=10, pady=10, expand=True,fill='both')  # Use 'expand' and 'fill' to make it use available space
 
     # Button to add URLs to the queue
     add_to_queue_btn = tk.Button(queue_frame, text="Add to Queue",
                                  command=lambda: add_to_queue(channel_url_entry.get(), queue_display))
-    add_to_queue_btn.pack(pady=10)
+    add_to_queue_btn.pack(side=tk.LEFT, padx=5, pady=10)
 
     # Button to start downloading from the queue
     start_queue_btn = tk.Button(queue_frame, text="Start Download from Queue",
                                 command=lambda: start_queue_download(queue_display))
-    start_queue_btn.pack(pady=10)
+    start_queue_btn.pack(side=tk.LEFT, padx=5, pady=10)
+
+    # Real-time Update Listbox with Progress Bar
+    update_frame = tk.LabelFrame(main_frame, text="Update Status", borderwidth=2, relief="groove")
+    update_frame.grid(row=1, column=0, columnspan=3, padx=5, pady=5, sticky="nsew")
+
+    # Listbox for displaying processing status
+    status_listbox = Listbox(update_frame, height=10, width=100)
+    status_listbox.pack(padx=10, pady=10, fill='both', expand=True)
+
+    # Initialize the progress_var variable and create a progress bar
+    progress_var = tk.DoubleVar()
+    progress_bar = ttk.Progressbar(update_frame, variable=progress_var, maximum=100)
+    progress_bar.pack(fill='x', padx=5, pady=5)  # Pack progress bar in the update frame below the listbox
+
+    # Optional: Create a status label if needed below the progress bar
+    status_label = tk.Label(update_frame, text="")
+    status_label.pack(fill='x', padx=5, pady=5)
 
     main_frame.grid_columnconfigure(0, weight=1)
     main_frame.grid_columnconfigure(1, weight=1)
     main_frame.grid_columnconfigure(2, weight=1)
     main_frame.grid_rowconfigure(0, weight=1)
 
-    return main_frame
+    return main_frame, status_listbox  # Return the listbox for updates
 
 def main():
     global config
