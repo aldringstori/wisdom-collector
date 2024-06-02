@@ -7,11 +7,11 @@ Scraptube (https://github.com/dermasmid/scrapetube).
 | ✨ Features              | Implemented |                         Description                                      |
 | -----------------------  | ----------- | ------------------------------------------------------------------------- |
 | Single youtube video     |     ✅     | Single youtube video transcription download                               |
-| Single youtube shorts v  |     ✅     | Single youtube shorts transcription download                              |
+| Single youtube shorts    |     ✅     | Single youtube shorts transcription download                              |
 | Massive channel download |     ✅     | Bulk/Massive Youtube channel all videos                                   |
 | Massive shorts download  |     ✅     | All shorts from a channel transcriptions download                         |
 | Playlist transcriptions  |     ✅     | All transcriptions from a playlist transcriptions download                |
-| Queue multiple channels  |     ✅     | Rerank results based on context for improved results                      |
+| Queue multiple channels  |     ✅     | Put multiple channels into a queue for download                           |
 | Convert pdf books to txt |     ✅     | Convert pdfs or entire books to txt                                       | 
 
 
