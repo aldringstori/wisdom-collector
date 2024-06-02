@@ -3,6 +3,17 @@ youtube-transcript-api (https://github.com/jdepoix/youtube-transcript-api)
 Scraptube (https://github.com/dermasmid/scrapetube).
 
 
+##Features
+| ✨ Features              | Implemented |                         Description                                      |
+| -----------------------  | ----------- | ------------------------------------------------------------------------- |
+| Single youtube video     |     ✅     | Single youtube video transcription download                               |
+| Single youtube shorts v  |     ✅     | Single youtube shorts transcription download                              |
+| Massive channel download |     ✅     | Bulk/Massive Youtube channel all videos                                   |
+| Massive shorts download  |     ✅     | All shorts from a channel transcriptions download                         |
+| Playlist transcriptions  |     ✅     | All transcriptions from a playlist transcriptions download                |
+| Queue multiple channels  |     ✅     | Rerank results based on context for improved results                      |
+| Convert pdf books to txt |     ✅     | Convert pdfs or entire books to txt                                       | 
+
 
 #Modes available to download
 Single youtube video transcription download
