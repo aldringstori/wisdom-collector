@@ -15,17 +15,8 @@ Scraptube (https://github.com/dermasmid/scrapetube).
 | Convert pdf books to txt |     ✅     | Convert pdfs or entire books to txt                                       | 
 
 
-#Modes available to download
-Single youtube video transcription download
-Single youtube shorts transcription download
-All videos from a channel transcriptions download
-All shorts from a channel transcriptions download
-Playlist transcriptions download
-Queue multiple channels
-Convert pdf to txt
-
 Motivation
-To feed AI with your preferred channel data or anything else you want to use.
+To feed AI with your preferred youtube channel data or anything else you want to use.
 To people who don't know how to code and want to download the transcription file in plain text, so you don't have to watch an entire 2 hour video.
 
 
